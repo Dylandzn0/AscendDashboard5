@@ -448,18 +448,25 @@ export default function ProfilePage() {
                   <Input id="editPhone" value={phone} onChange={(e) => setPhone(e.target.value)} />
                 </div>
               </div>
-              <div className="space-y-2">
-                <Label htmlFor="editBio">Bio</Label>
-                <Textarea
-                  id="editBio"
-                  value={bio}
-                  onChange={(e) => setBio(e.target.value)}
-                  placeholder="Tell us about yourself, your expertise, and your role at Ascend Media..."
-                  className="min-h-[120px]"
-                />
-                <p className="text-xs text-muted-foreground mt-1">
-                  Your bio will be visible on the team page and helps other team members get to know you better.
-                </p>
+              <div className="space-y-4">
+                {/* Personal Information */}
+                <div className="grid gap-4">
+                  <div className="grid gap-2">
+                    <Label htmlFor="bio">About Me</Label>
+                    <Textarea
+                      id="bio"
+                      placeholder="Tell your team members a bit about yourself..."
+                      value={bio}
+                      onChange={(e) => setBio(e.target.value)}
+                      className="resize-none"
+                      rows={4}
+                      maxLength={500}
+                    />
+                    <p className="text-sm text-muted-foreground text-right">
+                      {bio.length}/500 characters
+                    </p>
+                  </div>
+                </div>
               </div>
               {editingSection === "personal" && (
                 <div className="flex justify-end space-x-2">

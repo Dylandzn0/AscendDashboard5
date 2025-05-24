@@ -19,6 +19,10 @@ import { loadData, saveData } from "@/lib/data-persistence"
 import { EnhancedDatePicker } from "@/components/ui/enhanced-date-picker"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { AlertCircle, Clock } from "lucide-react"
+import { Calendar } from "@/components/ui/calendar"
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
+import { format } from "date-fns"
+import { CalendarIcon } from "lucide-react"
 
 interface ScheduleEmployeeMeetingProps {
   open: boolean
@@ -160,6 +164,19 @@ export function ScheduleEmployeeMeeting({
   // Deselect all employees
   const deselectAllEmployees = () => {
     setSelectedEmployees([])
+  }
+
+  // Add date selection UI
+  const handleStartDateSelect = (date: Date | undefined) => {
+    setStartDate(date)
+    // If end date is not set or is before the new start date, update it
+    if (!endDate || (date && endDate && isBefore(endDate, date))) {
+      setEndDate(date ? addHours(date, 1) : undefined)
+    }
+  }
+
+  const handleEndDateSelect = (date: Date | undefined) => {
+    setEndDate(date)
   }
 
   // Handle form submission
@@ -329,51 +346,70 @@ export function ScheduleEmployeeMeeting({
               />
             </div>
 
-            <div className="grid grid-cols-2 gap-6">
-              <div className="space-y-3">
-                <EnhancedDatePicker
-                  label="Start Date"
-                  date={startDate}
-                  onDateChange={setStartDate}
-                  placeholder="Select start date"
-                  error={dateError && dateError.includes("start") ? dateError : undefined}
-                />
-
-                <div className="space-y-2">
-                  <Label htmlFor="startTime">Start Time</Label>
-                  <div className="relative">
-                    <Clock className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+            <div className="grid gap-2">
+              <Label>Date and Time</Label>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {/* Start Date */}
+                <div className="grid gap-2">
+                  <Label>Start Date</Label>
+                  <Popover>
+                    <PopoverTrigger asChild>
+                      <Button
+                        variant="outline"
+                        className={`justify-start text-left font-normal ${!startDate && "text-muted-foreground"}`}
+                      >
+                        <CalendarIcon className="mr-2 h-4 w-4" />
+                        {startDate ? format(startDate, "PPP") : "Select date"}
+                      </Button>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-auto p-0" align="start">
+                      <Calendar
+                        mode="single"
+                        selected={startDate}
+                        onSelect={handleStartDateSelect}
+                        initialFocus
+                      />
+                    </PopoverContent>
+                  </Popover>
+                  <div className="grid gap-2">
+                    <Label>Start Time</Label>
                     <Input
-                      id="startTime"
                       type="time"
                       value={startTime}
                       onChange={(e) => setStartTime(e.target.value)}
-                      className="pl-10"
                     />
                   </div>
                 </div>
-              </div>
 
-              <div className="space-y-3">
-                <EnhancedDatePicker
-                  label="End Date"
-                  date={endDate}
-                  onDateChange={setEndDate}
-                  placeholder="Select end date"
-                  error={dateError && dateError.includes("end") ? dateError : undefined}
-                  minDate={startDate}
-                />
-
-                <div className="space-y-2">
-                  <Label htmlFor="endTime">End Time</Label>
-                  <div className="relative">
-                    <Clock className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                {/* End Date */}
+                <div className="grid gap-2">
+                  <Label>End Date</Label>
+                  <Popover>
+                    <PopoverTrigger asChild>
+                      <Button
+                        variant="outline"
+                        className={`justify-start text-left font-normal ${!endDate && "text-muted-foreground"}`}
+                      >
+                        <CalendarIcon className="mr-2 h-4 w-4" />
+                        {endDate ? format(endDate, "PPP") : "Select date"}
+                      </Button>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-auto p-0" align="start">
+                      <Calendar
+                        mode="single"
+                        selected={endDate}
+                        onSelect={handleEndDateSelect}
+                        disabled={(date) => startDate ? isBefore(date, startDate) : false}
+                        initialFocus
+                      />
+                    </PopoverContent>
+                  </Popover>
+                  <div className="grid gap-2">
+                    <Label>End Time</Label>
                     <Input
-                      id="endTime"
                       type="time"
                       value={endTime}
                       onChange={(e) => setEndTime(e.target.value)}
-                      className="pl-10"
                     />
                   </div>
                 </div>

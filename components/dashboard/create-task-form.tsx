@@ -2,98 +2,76 @@
 
 import type React from "react"
 
-import { useState, useEffect } from "react"
+import { useState } from "react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { Textarea } from "@/components/ui/textarea"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { useAuth } from "@/lib/auth-context"
 import { useToast } from "@/components/ui/use-toast"
 import { loadData, saveData } from "@/lib/data-persistence"
 import { generateId } from "@/lib/uuid"
 import { format } from "date-fns"
-import { EnhancedDatePicker } from "@/components/ui/enhanced-date-picker"
-import { Alert, AlertDescription } from "@/components/ui/alert"
-import { AlertCircle } from "lucide-react"
+import { Calendar } from "@/components/ui/calendar"
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
+import { cn } from "@/lib/utils"
+import { CalendarIcon } from "lucide-react"
+import { syncTaskToCalendar } from "@/lib/calendar-sync"
 
 export type Task = {
   id: string
-  title: string
-  description: string
-  status: "todo" | "in-progress" | "completed" | "blocked"
+  name: string
+  description?: string
   priority: "low" | "medium" | "high"
-  assignedTo: string
-  createdBy: string
-  projectId?: string
   dueDate: string
+  assignedTo: string
+  clientId: string
+  createdBy: string
   createdAt: string
   completedAt?: string
+  status: "pending" | "in-progress" | "completed"
 }
 
-type CreateTaskFormProps = {
-  onSuccess: () => void
-  initialData?: Partial<Task>
-  isEditing?: boolean
-  projectId?: string
+interface CreateTaskFormProps {
+  onTaskCreated: () => void
+  onCancel: () => void
+  preselectedAssignee?: string
+  clientId?: string
 }
 
-export function CreateTaskForm({ onSuccess, initialData, isEditing = false, projectId }: CreateTaskFormProps) {
-  const { user, users } = useAuth()
+export function CreateTaskForm({ onTaskCreated, onCancel, preselectedAssignee, clientId }: CreateTaskFormProps) {
+  const { user, users, getAvailableClients } = useAuth()
   const { toast } = useToast()
+  const clients = getAvailableClients()
   const [isSubmitting, setIsSubmitting] = useState(false)
-  const [dueDate, setDueDate] = useState<Date | undefined>(
-    initialData?.dueDate ? new Date(initialData.dueDate) : undefined,
-  )
-  const [dateError, setDateError] = useState<string | null>(null)
+  const [dueDate, setDueDate] = useState<Date | undefined>()
   const [formData, setFormData] = useState({
-    title: initialData?.title || "",
-    description: initialData?.description || "",
-    status: initialData?.status || "todo",
-    priority: initialData?.priority || "medium",
-    assignedTo: initialData?.assignedTo || user?.id || "",
-    projectId: initialData?.projectId || projectId || "",
+    name: "",
+    description: "",
+    priority: "medium",
+    assignedTo: preselectedAssignee || "",
+    clientId: clientId || "",
+    status: "pending",
   })
 
-  // Get projects for dropdown
-  const projects = loadData("projects", [])
-
-  // Handle input change
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
     const { name, value } = e.target
     setFormData((prev) => ({ ...prev, [name]: value }))
   }
 
-  // Handle select change
   const handleSelectChange = (name: string, value: string) => {
     setFormData((prev) => ({ ...prev, [name]: value }))
   }
 
-  // Validate dates whenever they change
-  useEffect(() => {
-    validateDates()
-  }, [dueDate])
-
-  // Function to validate dates
-  const validateDates = () => {
-    setDateError(null)
-
-    // Optional: Add any specific date validation logic here
-    // For example, you might want to ensure due dates aren't in the past
-
-    return true
-  }
-
-  // Handle form submission
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!user) return
 
     // Validate form
-    if (!formData.title.trim()) {
+    if (!formData.name.trim()) {
       toast({
-        title: "Missing title",
-        description: "Please enter a task title",
+        title: "Missing name",
+        description: "Please enter a task name",
         variant: "destructive",
       })
       return
@@ -102,7 +80,16 @@ export function CreateTaskForm({ onSuccess, initialData, isEditing = false, proj
     if (!formData.assignedTo) {
       toast({
         title: "Missing assignee",
-        description: "Please select a team member to assign this task",
+        description: "Please select a team member to assign the task to",
+        variant: "destructive",
+      })
+      return
+    }
+
+    if (!dueDate) {
+      toast({
+        title: "Missing due date",
+        description: "Please select a due date for the task",
         variant: "destructive",
       })
       return
@@ -113,68 +100,64 @@ export function CreateTaskForm({ onSuccess, initialData, isEditing = false, proj
     try {
       // Create task object
       const taskData: Task = {
-        id: initialData?.id || generateId(),
-        title: formData.title,
+        id: generateId(),
+        name: formData.name,
         description: formData.description,
-        status: formData.status as Task["status"],
         priority: formData.priority as Task["priority"],
+        dueDate: format(dueDate, "yyyy-MM-dd"),
         assignedTo: formData.assignedTo,
-        createdBy: initialData?.createdBy || user.id,
-        projectId: formData.projectId || undefined,
-        dueDate: dueDate ? format(dueDate, "yyyy-MM-dd") : "",
-        createdAt: initialData?.createdAt || new Date().toISOString(),
-        completedAt: initialData?.completedAt,
+        clientId: formData.clientId,
+        status: formData.status as Task["status"],
+        createdBy: user.id,
+        createdAt: new Date().toISOString(),
       }
 
       // Save task to localStorage
       const existingTasks: Task[] = loadData("tasks", [])
-
-      let updatedTasks: Task[]
-
-      if (isEditing) {
-        // Update existing task
-        updatedTasks = existingTasks.map((t) => (t.id === taskData.id ? taskData : t))
-      } else {
-        // Add new task
-        updatedTasks = [...existingTasks, taskData]
-      }
-
+      const updatedTasks = [...existingTasks, taskData]
       saveData("tasks", updatedTasks)
 
-      // Create notification for assigned user if it's not the current user
-      if (formData.assignedTo !== user.id) {
-        const assignedUser = users.find((u) => u.id === formData.assignedTo)
-        if (assignedUser) {
-          const notifications = loadData("notifications", [])
-          const newNotification = {
-            id: generateId(),
-            userId: formData.assignedTo,
-            title: isEditing ? "Task Updated" : "New Task Assigned",
-            message: `${isEditing ? "Task updated" : "You have been assigned a new task"}: ${formData.title}`,
-            type: "task",
-            read: false,
-            createdAt: new Date().toISOString(),
-            link: "/tasks-projects",
-          }
-          saveData("notifications", [...notifications, newNotification])
+      // Sync task to calendar
+      const calendarSynced = syncTaskToCalendar({
+        id: taskData.id,
+        name: taskData.name,
+        description: taskData.description,
+        dueDate: taskData.dueDate,
+        assignedTo: taskData.assignedTo
+      })
+
+      // Create notification for assignee
+      if (taskData.assignedTo !== user.id) {
+        const notifications = loadData("notifications", [])
+        const assignedUser = users.find(u => u.id === taskData.assignedTo)
+        const clientName = clients.find(c => c.id === taskData.clientId)?.name || "Unknown Client"
+
+        const newNotification = {
+          id: generateId(),
+          userId: taskData.assignedTo,
+          title: "New Task Assignment",
+          message: `You have been assigned a new task: ${taskData.name} for ${clientName}, due on ${format(dueDate, "MMM d, yyyy")}`,
+          type: "task",
+          read: false,
+          createdAt: new Date().toISOString(),
+          link: `/clients/${taskData.clientId}?tab=tasks`,
         }
+        saveData("notifications", [...notifications, newNotification])
       }
 
-      // Show success message
+      // Show success toast with calendar sync status
       toast({
-        title: isEditing ? "Task updated" : "Task created",
-        description: isEditing
-          ? "The task has been updated successfully."
-          : "The task has been created and assigned successfully.",
+        title: "Task created",
+        description: `${taskData.name} has been created and assigned to ${users.find((u) => u.id === taskData.assignedTo)?.name}. ${calendarSynced ? 'Calendar event created.' : 'Note: Calendar sync failed.'}`,
       })
 
       // Call success callback
-      onSuccess()
+      onTaskCreated()
     } catch (error) {
-      console.error("Error saving task:", error)
+      console.error("Error creating task:", error)
       toast({
         title: "Error",
-        description: "There was a problem saving the task. Please try again.",
+        description: "There was a problem creating the task. Please try again.",
         variant: "destructive",
       })
     } finally {
@@ -185,45 +168,29 @@ export function CreateTaskForm({ onSuccess, initialData, isEditing = false, proj
   return (
     <form onSubmit={handleSubmit} className="space-y-4">
       <div>
-        <Label htmlFor="title">Task Title</Label>
+        <Label htmlFor="name">Task Name</Label>
         <Input
-          id="title"
-          name="title"
-          value={formData.title}
+          id="name"
+          name="name"
+          value={formData.name}
           onChange={handleInputChange}
-          placeholder="Enter task title"
+          placeholder="e.g., Create thumbnail design"
           required
         />
       </div>
 
       <div>
-        <Label htmlFor="description">Description</Label>
-        <Textarea
+        <Label htmlFor="description">Description (Optional)</Label>
+        <Input
           id="description"
           name="description"
           value={formData.description}
           onChange={handleInputChange}
-          placeholder="Enter task description"
-          rows={3}
+          placeholder="Add any additional details"
         />
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        <div>
-          <Label htmlFor="status">Status</Label>
-          <Select value={formData.status} onValueChange={(value) => handleSelectChange("status", value)}>
-            <SelectTrigger id="status">
-              <SelectValue placeholder="Select status" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="todo">To Do</SelectItem>
-              <SelectItem value="in-progress">In Progress</SelectItem>
-              <SelectItem value="completed">Completed</SelectItem>
-              <SelectItem value="blocked">Blocked</SelectItem>
-            </SelectContent>
-          </Select>
-        </div>
-
         <div>
           <Label htmlFor="priority">Priority</Label>
           <Select value={formData.priority} onValueChange={(value) => handleSelectChange("priority", value)}>
@@ -237,66 +204,88 @@ export function CreateTaskForm({ onSuccess, initialData, isEditing = false, proj
             </SelectContent>
           </Select>
         </div>
-      </div>
-
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        <div>
-          <Label htmlFor="assignedTo">Assigned To</Label>
-          <Select value={formData.assignedTo} onValueChange={(value) => handleSelectChange("assignedTo", value)}>
-            <SelectTrigger id="assignedTo">
-              <SelectValue placeholder="Select team member" />
-            </SelectTrigger>
-            <SelectContent>
-              {users.map((user) => (
-                <SelectItem key={user.id} value={user.id}>
-                  {user.name}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
 
         <div>
-          <Label htmlFor="projectId">Project (Optional)</Label>
-          <Select value={formData.projectId} onValueChange={(value) => handleSelectChange("projectId", value)}>
-            <SelectTrigger id="projectId">
-              <SelectValue placeholder="Select project" />
+          <Label htmlFor="status">Status</Label>
+          <Select value={formData.status} onValueChange={(value) => handleSelectChange("status", value)}>
+            <SelectTrigger id="status">
+              <SelectValue placeholder="Select status" />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="none">None</SelectItem>
-              {projects.map((project: any) => (
-                <SelectItem key={project.id} value={project.id}>
-                  {project.name}
-                </SelectItem>
-              ))}
+              <SelectItem value="pending">Pending</SelectItem>
+              <SelectItem value="in-progress">In Progress</SelectItem>
+              <SelectItem value="completed">Completed</SelectItem>
             </SelectContent>
           </Select>
         </div>
       </div>
 
       <div>
-        <EnhancedDatePicker
-          label="Due Date"
-          date={dueDate}
-          onDateChange={setDueDate}
-          placeholder="Select due date"
-          error={dateError}
-        />
+        <Label>Due Date</Label>
+        <Popover>
+          <PopoverTrigger asChild>
+            <Button
+              variant="outline"
+              className={cn(
+                "w-full justify-start text-left font-normal",
+                !dueDate && "text-muted-foreground"
+              )}
+            >
+              <CalendarIcon className="mr-2 h-4 w-4" />
+              {dueDate ? format(dueDate, "PPP") : "Select due date"}
+            </Button>
+          </PopoverTrigger>
+          <PopoverContent className="w-auto p-0" align="start">
+            <Calendar
+              mode="single"
+              selected={dueDate}
+              onSelect={setDueDate}
+              initialFocus
+            />
+          </PopoverContent>
+        </Popover>
       </div>
 
-      {dateError && (
-        <Alert variant="destructive">
-          <AlertCircle className="h-4 w-4" />
-          <AlertDescription>{dateError}</AlertDescription>
-        </Alert>
+      <div>
+        <Label htmlFor="assignedTo">Assign To</Label>
+        <Select value={formData.assignedTo} onValueChange={(value) => handleSelectChange("assignedTo", value)}>
+          <SelectTrigger id="assignedTo">
+            <SelectValue placeholder="Select team member" />
+          </SelectTrigger>
+          <SelectContent>
+            {users.map((user) => (
+              <SelectItem key={user.id} value={user.id}>
+                {user.name}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </div>
+
+      {!clientId && (
+        <div>
+          <Label htmlFor="clientId">Client</Label>
+          <Select value={formData.clientId} onValueChange={(value) => handleSelectChange("clientId", value)}>
+            <SelectTrigger id="clientId">
+              <SelectValue placeholder="Select client" />
+            </SelectTrigger>
+            <SelectContent>
+              {clients.map((client) => (
+                <SelectItem key={client.id} value={client.id}>
+                  {client.name}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
       )}
 
-      <div className="flex justify-end space-x-2 pt-4">
-        <Button type="button" variant="outline" onClick={onSuccess}>
+      <div className="flex justify-end space-x-2">
+        <Button type="button" variant="outline" onClick={onCancel}>
           Cancel
         </Button>
         <Button type="submit" disabled={isSubmitting}>
-          {isSubmitting ? "Saving..." : isEditing ? "Update Task" : "Create Task"}
+          {isSubmitting ? "Creating..." : "Create Task"}
         </Button>
       </div>
     </form>

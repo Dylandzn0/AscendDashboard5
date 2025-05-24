@@ -51,11 +51,6 @@ export function DashboardSidebar() {
                 <LayoutDashboard className="sidebar-item-icon" />
                 Dashboard
               </Link>
-              <Link href="/tasks-projects" className={`sidebar-item ${isActive("/tasks-projects") ? "active" : ""}`}>
-                <ListChecks className="sidebar-item-icon" />
-                Tasks & Projects
-              </Link>
-
               {/* Only show contracts to owners and specific roles */}
               {(user?.role === "owner" || user?.role === "editor") && (
                 <Link href="/contracts" className={`sidebar-item ${isActive("/contracts") ? "active" : ""}`}>

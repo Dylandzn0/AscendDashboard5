@@ -34,7 +34,8 @@ export function AvailabilityToggleButton({
   }, [dateKey])
 
   // Handle availability change
-  const handleAvailabilityChange = (newAvailability: "available" | "unavailable") => {
+  const handleClick = () => {
+    const newAvailability = availability === "available" ? "unavailable" : "available"
     setAvailability(newAvailability)
 
     // Save to localStorage for persistence
@@ -53,8 +54,8 @@ export function AvailabilityToggleButton({
     <Button
       className={className}
       size={size}
-      availability={availability}
-      onAvailabilityChange={handleAvailabilityChange}
+      variant={availability === "available" ? "available" : "unavailable"}
+      onClick={handleClick}
       aria-label={`${day}: ${availability === "available" ? "Available" : "Unavailable"}`}
     >
       {day}

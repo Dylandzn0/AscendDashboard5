@@ -9,24 +9,23 @@ import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { format, isBefore } from "date-fns"
-import { Upload, AlertCircle } from "lucide-react"
+import { Upload, AlertCircle, CalendarIcon } from "lucide-react"
 import { useAuth } from "@/lib/auth-context"
 import { loadData, saveData } from "@/lib/data-persistence"
 import { generateId } from "@/lib/uuid"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { useToast } from "@/components/ui/use-toast"
-import { EnhancedDatePicker } from "@/components/ui/enhanced-date-picker"
+import { Calendar } from "@/components/ui/calendar"
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
+import { cn } from "@/lib/utils"
 
 // Define contract type
 export type Contract = {
   id: string
   name: string
-  client: string
-  clientId: string
   status: "Active" | "Pending" | "Expired" | "Draft"
   startDate: string // Stored in yyyy-MM-dd format
   endDate: string // Stored in yyyy-MM-dd format
-  value: string
   description?: string
   assignedTo?: string
   fileUrl?: string
@@ -57,9 +56,7 @@ export function ContractForm({ onSuccess, initialData, isEditing = false }: Cont
   const [file, setFile] = useState<File | null>(null)
   const [formData, setFormData] = useState<Partial<Contract>>({
     name: initialData?.name || "",
-    clientId: initialData?.clientId || "",
     status: initialData?.status || "Draft",
-    value: initialData?.value || "",
     description: initialData?.description || "",
     assignedTo: initialData?.assignedTo || "",
   })
@@ -121,19 +118,13 @@ export function ContractForm({ onSuccess, initialData, isEditing = false }: Cont
       const fileUrl = file ? URL.createObjectURL(file) : initialData?.fileUrl
       const fileName = file ? file.name : initialData?.fileName
 
-      // Get client name from ID
-      const client = clients.find((c) => c.id === formData.clientId)?.name || ""
-
       // Create contract object
       const contractData: Contract = {
         id: initialData?.id || generateId(),
         name: formData.name || "Untitled Contract",
-        client,
-        clientId: formData.clientId || "",
         status: (formData.status as Contract["status"]) || "Draft",
         startDate: startDate ? format(startDate, "yyyy-MM-dd") : "",
         endDate: endDate ? format(endDate, "yyyy-MM-dd") : "",
-        value: formData.value || "$0.00",
         description: formData.description,
         assignedTo: formData.assignedTo,
         fileUrl,
@@ -194,22 +185,6 @@ export function ContractForm({ onSuccess, initialData, isEditing = false }: Cont
         </div>
 
         <div>
-          <Label htmlFor="clientId">Client</Label>
-          <Select value={formData.clientId} onValueChange={(value) => handleSelectChange("clientId", value)}>
-            <SelectTrigger>
-              <SelectValue placeholder="Select a client" />
-            </SelectTrigger>
-            <SelectContent>
-              {clients.map((client) => (
-                <SelectItem key={client.id} value={client.id}>
-                  {client.name}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
-
-        <div>
           <Label htmlFor="assignedTo">Assigned To</Label>
           <Select value={formData.assignedTo} onValueChange={(value) => handleSelectChange("assignedTo", value)}>
             <SelectTrigger>
@@ -244,25 +219,58 @@ export function ContractForm({ onSuccess, initialData, isEditing = false }: Cont
         </div>
 
         <div className="grid grid-cols-2 gap-4">
-          <EnhancedDatePicker
-            label="Start Date"
-            date={startDate}
-            onDateChange={setStartDate}
-            placeholder="Select start date"
-            error={dateError && dateError.includes("start") ? dateError : undefined}
-            required
-          />
+          <div className="flex flex-col space-y-2">
+            <Label>Start Date</Label>
+            <Popover>
+              <PopoverTrigger asChild>
+                <Button
+                  variant="outline"
+                  className={cn(
+                    "w-full justify-start text-left font-normal",
+                    !startDate && "text-muted-foreground"
+                  )}
+                >
+                  <CalendarIcon className="mr-2 h-4 w-4" />
+                  {startDate ? format(startDate, "MMM d, yyyy") : "Select start date"}
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent className="w-auto p-0" align="start">
+                <Calendar
+                  mode="single"
+                  selected={startDate}
+                  onSelect={setStartDate}
+                  initialFocus
+                />
+              </PopoverContent>
+            </Popover>
+          </div>
 
-          <EnhancedDatePicker
-            label="End Date"
-            date={endDate}
-            onDateChange={setEndDate}
-            placeholder="Select end date"
-            error={dateError && dateError.includes("end") ? dateError : undefined}
-            required
-            minDate={startDate}
-            disabledDates={(date) => (startDate ? isBefore(date, startDate) : false)}
-          />
+          <div className="flex flex-col space-y-2">
+            <Label>End Date</Label>
+            <Popover>
+              <PopoverTrigger asChild>
+                <Button
+                  variant="outline"
+                  className={cn(
+                    "w-full justify-start text-left font-normal",
+                    !endDate && "text-muted-foreground"
+                  )}
+                >
+                  <CalendarIcon className="mr-2 h-4 w-4" />
+                  {endDate ? format(endDate, "MMM d, yyyy") : "Select end date"}
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent className="w-auto p-0" align="start">
+                <Calendar
+                  mode="single"
+                  selected={endDate}
+                  onSelect={setEndDate}
+                  disabled={(date) => startDate ? isBefore(date, startDate) : false}
+                  initialFocus
+                />
+              </PopoverContent>
+            </Popover>
+          </div>
         </div>
 
         {dateError && (
@@ -271,17 +279,6 @@ export function ContractForm({ onSuccess, initialData, isEditing = false }: Cont
             <AlertDescription>{dateError}</AlertDescription>
           </Alert>
         )}
-
-        <div>
-          <Label htmlFor="value">Contract Value</Label>
-          <Input
-            id="value"
-            name="value"
-            value={formData.value}
-            onChange={handleInputChange}
-            placeholder="e.g., $5,000.00"
-          />
-        </div>
 
         <div>
           <Label htmlFor="description">Description</Label>

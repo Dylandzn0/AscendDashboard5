@@ -88,13 +88,10 @@ export function ContractsList() {
         <Table>
           <TableHeader>
             <TableRow>
-              <TableHead>Contract ID</TableHead>
-              <TableHead>Name</TableHead>
-              <TableHead>Client</TableHead>
+              <TableHead>Contract Name</TableHead>
               <TableHead>Status</TableHead>
               <TableHead>Start Date</TableHead>
               <TableHead>End Date</TableHead>
-              <TableHead>Value</TableHead>
               <TableHead>Assigned To</TableHead>
               <TableHead className="w-[100px]">Actions</TableHead>
             </TableRow>
@@ -102,20 +99,14 @@ export function ContractsList() {
           <TableBody>
             {filteredContracts.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={9} className="h-24 text-center">
+                <TableCell colSpan={6} className="h-24 text-center">
                   No contracts found.
                 </TableCell>
               </TableRow>
             ) : (
               filteredContracts.map((contract) => (
                 <TableRow key={contract.id}>
-                  <TableCell className="font-medium">{contract.id}</TableCell>
-                  <TableCell>{contract.name}</TableCell>
-                  <TableCell>
-                    <Link href={`/clients/${contract.clientId}`} className="hover:underline">
-                      {contract.client}
-                    </Link>
-                  </TableCell>
+                  <TableCell className="font-medium">{contract.name}</TableCell>
                   <TableCell>
                     <Badge
                       variant={
@@ -133,49 +124,37 @@ export function ContractsList() {
                   </TableCell>
                   <TableCell>{formatContractDate(contract.startDate)}</TableCell>
                   <TableCell>{formatContractDate(contract.endDate)}</TableCell>
-                  <TableCell>{contract.value}</TableCell>
                   <TableCell>{getUserName(contract.assignedTo || "")}</TableCell>
                   <TableCell>
                     <DropdownMenu>
                       <DropdownMenuTrigger asChild>
-                        <Button variant="ghost" size="icon">
+                        <Button variant="ghost" className="h-8 w-8 p-0">
+                          <span className="sr-only">Open menu</span>
                           <MoreHorizontal className="h-4 w-4" />
-                          <span className="sr-only">Actions</span>
                         </Button>
                       </DropdownMenuTrigger>
                       <DropdownMenuContent align="end">
                         <DropdownMenuItem onClick={() => setViewingContract(contract)}>
                           <Eye className="mr-2 h-4 w-4" />
-                          View
+                          View details
                         </DropdownMenuItem>
-                        {(user?.role === "owner" || contract.createdBy === user?.id) && (
-                          <>
-                            <DropdownMenuItem onClick={() => setEditingContract(contract)}>
-                              <Edit className="mr-2 h-4 w-4" />
-                              Edit
-                            </DropdownMenuItem>
-                            <DropdownMenuItem
-                              onClick={() => setDeletingContract(contract)}
-                              className="text-destructive focus:text-destructive"
-                            >
-                              <Trash2 className="mr-2 h-4 w-4" />
-                              Delete
-                            </DropdownMenuItem>
-                          </>
-                        )}
+                        <DropdownMenuItem onClick={() => setEditingContract(contract)}>
+                          <Edit className="mr-2 h-4 w-4" />
+                          Edit contract
+                        </DropdownMenuItem>
                         {contract.fileUrl && (
-                          <DropdownMenuItem asChild>
-                            <a
-                              href={contract.fileUrl}
-                              download={contract.fileName}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                            >
-                              <Download className="mr-2 h-4 w-4" />
-                              Download
-                            </a>
+                          <DropdownMenuItem onClick={() => window.open(contract.fileUrl, "_blank")}>
+                            <Download className="mr-2 h-4 w-4" />
+                            Download
                           </DropdownMenuItem>
                         )}
+                        <DropdownMenuItem
+                          className="text-destructive focus:text-destructive"
+                          onClick={() => setDeletingContract(contract)}
+                        >
+                          <Trash2 className="mr-2 h-4 w-4" />
+                          Delete contract
+                        </DropdownMenuItem>
                       </DropdownMenuContent>
                     </DropdownMenu>
                   </TableCell>
@@ -192,7 +171,7 @@ export function ContractsList() {
           <DialogContent className="sm:max-w-[600px]">
             <DialogHeader>
               <DialogTitle>{viewingContract.name}</DialogTitle>
-              <DialogDescription>Contract details for {viewingContract.client}</DialogDescription>
+              <DialogDescription>Contract details</DialogDescription>
             </DialogHeader>
             <div className="space-y-4">
               <div className="grid grid-cols-2 gap-4">
@@ -215,8 +194,8 @@ export function ContractsList() {
                   </p>
                 </div>
                 <div>
-                  <h4 className="text-sm font-medium">Contract ID</h4>
-                  <p>{viewingContract.id}</p>
+                  <h4 className="text-sm font-medium">Assigned To</h4>
+                  <p>{getUserName(viewingContract.assignedTo || "")}</p>
                 </div>
               </div>
 
@@ -238,36 +217,23 @@ export function ContractsList() {
               </div>
 
               <div>
-                <h4 className="text-sm font-medium">Contract Value</h4>
-                <p>{viewingContract.value}</p>
-              </div>
-
-              <div>
-                <h4 className="text-sm font-medium">Assigned To</h4>
-                <p>{getUserName(viewingContract.assignedTo || "")}</p>
-              </div>
-
-              <div>
                 <h4 className="text-sm font-medium">Description</h4>
                 <p className="whitespace-pre-wrap">{viewingContract.description || "No description provided."}</p>
               </div>
 
-              {viewingContract.fileUrl && (
+              {viewingContract.fileName && (
                 <div>
-                  <h4 className="text-sm font-medium">Contract Document</h4>
-                  <div className="mt-2">
-                    <Button asChild variant="outline" size="sm">
-                      <a
-                        href={viewingContract.fileUrl}
-                        download={viewingContract.fileName}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                      >
-                        <Download className="mr-2 h-4 w-4" />
-                        Download {viewingContract.fileName}
-                      </a>
-                    </Button>
-                  </div>
+                  <h4 className="text-sm font-medium">Attached Document</h4>
+                  <p className="flex items-center">
+                    <a
+                      href={viewingContract.fileUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-primary hover:underline"
+                    >
+                      {viewingContract.fileName}
+                    </a>
+                  </p>
                 </div>
               )}
             </div>
